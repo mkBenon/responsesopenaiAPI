@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Agentic Chatbots (Supervisor + RAG) - Responses API</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111827'/%3E%3Ctext x='50' y='60' font-size='60' text-anchor='middle' fill='%233b82f6'%3EA%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111827;
+      --muted: #6b7280;
+      --text: #e5e7eb;
+      --accent: #3b82f6;
+      --accent-2: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --border: #1f2937;
+      --chip: #374151;
+      --reasoning: #1e293b;
+      --reasoning-border: #475569;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #0b0f14 0%, #0b0f14 60%, #0f172a 100%);
+      color: var(--text);
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(17,24,39,0.6);
+      backdrop-filter: blur(6px);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    header .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 350px 1fr 320px;
+      gap: 12px;
+      padding: 12px;
+      height: calc(100vh - 58px);
+    }
+    .card {
+      background: rgba(17,24,39,0.7);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .card h2 {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .list {
+      padding: 10px;
+      overflow: auto;
+      min-height: 0;
+    }
+    .assistant {
+      border: 1px solid var(--border);
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .assistant.active { border-color: var(--accent); }
+    .assistant .name { font-weight: 600; }
+    .assistant .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .assistant .meta:last-child {
+      margin-bottom: 0;
+    }
+    .assistant .row-actions {
+      display: flex;
+      gap: 6px;
+    }
+    button, .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-secondary {
+      background: #1f2937;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-danger { background: var(--danger); }
+    .btn-warning { background: var(--warning); }
+    .btn-muted {
+      background: #111827;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    input[type="text"], input[type="file"], select {
+      width: 100%;
+      background: #0b1323;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    .chat {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 0;
+      height: 100%;
+    }
+    .chat-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-messages {
+      padding: 12px;
+      overflow: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 10px;
+      align-items: flex-start;
+      background: #0b1323;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .msg.reasoning {
+      background: var(--reasoning);
+      border-color: var(--reasoning-border);
+    }
+    .msg.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--danger);
+    }
+    .msg.background-task {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: var(--warning);
+    }
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--chip);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #c7d2fe;
+    }
+    .avatar.reasoning {
+      background: var(--reasoning-border);
+      color: #94a3b8;
+    }
+    .avatar.error {
+      background: var(--danger);
+      color: white;
+    }
+    .avatar.background {
+      background: var(--warning);
+      color: white;
+    }
+    .msg .role { font-weight: 700; margin-bottom: 4px; }
+    .msg .text { 
+      white-space: pre-wrap; 
+      line-height: 1.5;
+    }
+    .msg .reasoning-text {
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-style: italic;
+      color: #94a3b8;
+    }
+    .chip {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      background: var(--chip);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      color: #d1d5db;
+      word-break: break-all;
+      max-width: 100%;
+      line-height: 1.3;
+    }
+    .chip.status {
+      font-weight: 600;
+    }
+    .chip.completed { background: var(--accent-2); color: white; }
+    .chip.in-progress { background: var(--warning); color: white; }
+    .chip.queued { background: var(--muted); color: white; }
+    .chip.failed { background: var(--danger); color: white; }
+    .chat-input {
+      border-top: 1px solid var(--border);
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .files {
+      padding: 10px;
+      overflow: auto;
+      min-height: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .file-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: #0b1323;
+    }
+    .muted { color: var(--muted); }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .row .grow { flex: 1; }
+    .row .shrink { flex: 0 0 auto; }
+    .note { color: var(--muted); font-size: 12px; }
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-bar .fill {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+      border-radius: 2px;
+    }
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .typing-indicator .dots {
+      display: flex;
+      gap: 2px;
+    }
+    .typing-indicator .dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: typing 1.4s infinite ease-in-out;
+    }
+    .typing-indicator .dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator .dot:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes typing {
+      0%, 80%, 100% { opacity: 0.3; }
+      40% { opacity: 1; }
+    }
+    .response-metadata {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(55, 65, 81, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .response-metadata .meta-item {
+      margin-bottom: 4px;
+    }
+    .response-metadata .meta-item:last-child {
+      margin-bottom: 0;
+    }
+    @media (max-width: 1100px) {
+      .container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Agentic Chatbots - Responses API</h1>
+    <div class="actions">
+      <button id="newAssistantBtn">New Assistant</button>
+      <button class="btn-secondary" id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Assistants -->
+    <section class="card" id="assistantsCard">
+      <h2>Assistants</h2>
+      <div class="list" id="assistantsList"></div>
+    </section>
+
+    <!-- Chat -->
+    <section class="card chat">
+      <div class="chat-header">
+        <div>
+          <div id="activeAssistantName" style="font-weight:700">No assistant selected</div>
+          <div class="note">Entry point: Supervisor agent. Vector Store-backed RAG optional per assistant.</div>
+        </div>
+        <div id="chatMeta" class="note"></div>
+      </div>
+      <div class="chat-messages" id="messages"></div>
+      <div class="chat-input">
+        <input id="textInput" type="text" placeholder="Type a message..." />
+        <button id="sendBtn">Send</button>
+        <button id="recordBtn" class="btn-secondary">Start Mic</button>
+      </div>
+    </section>
+
+  <!-- Documents -->
+    <section class="card">
+      <h2>Documents</h2>
+      <div class="files" id="filesPanel">
+        <div class="row">
+          <input id="assistantNameInput" type="text" placeholder="Assistant name (for new assistant)" />
+        </div>
+        <div class="row">
+          <input id="fileInput" type="file" multiple />
+          <button id="uploadBtn" class="shrink">Upload</button>
+        </div>
+        <div class="note">
+          Files are ingested into the assistant's Vector Store and available to the RAG agent via file_search.
+        </div>
+        <div id="filesList"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Error diagnostics to capture parse/runtime errors early
+    window.onerror = function(message, source, lineno, colno, error) {
+      try {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:fixed;bottom:12px;left:12px;background:#111827;color:#e5e7eb;border:1px solid #ef4444;padding:8px 10px;border-radius:8px;z-index:99999;max-width:80vw;white-space:pre-wrap;';
+        el.textContent = 'JS Error: ' + message + ' at ' + lineno + ':' + colno;
+        document.body.appendChild(el);
+        console.error('window.onerror', { message, source, lineno, colno, error });
+      } catch {}
+    };
+  </script>
+  <script>
+    // Utilities
+    function escapeHtml(s) {
+      const str = String(s);
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      };
+      return str.replace(/[&<>"']/g, ch => map[ch]);
+    }
+
+    // Simple state persisted in localStorage
+    const LS_KEY = "agentic_assistants_v2";
+    const LS_CHAT_PREFIX = "agentic_chat_";
+    let assistants = loadAssistants();
+    let activeAssistantId = assistants[0]?.id || null;
+
+    function uid() {
+      return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+    function loadAssistants() {
+      try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; }
+    }
+    function saveAssistants() {
+      localStorage.setItem(LS_KEY, JSON.stringify(assistants));
+    }
+    function getAssistant(id) {
+      return assistants.find(a => a.id === id) || null;
+    }
+    function setActiveAssistant(id) {
+      activeAssistantId = id;
+      renderAssistants();
+      renderActive();
+      refreshFiles();
+      renderChatHistory();
+    }
+    function removeAssistant(id) {
+      assistants = assistants.filter(a => a.id !== id);
+      if (activeAssistantId === id) {
+        activeAssistantId = assistants[0]?.id || null;
+      }
+      saveAssistants();
+      renderAssistants();
+      renderActive();
+      refreshFiles();
+      renderChatHistory();
+    }
+
+    // UI rendering
+    const assistantsListEl = document.getElementById("assistantsList");
+    const activeAssistantNameEl = document.getElementById("activeAssistantName");
+    const chatMetaEl = document.getElementById("chatMeta");
+    const messagesEl = document.getElementById("messages");
+    const assistantNameInput = document.getElementById("assistantNameInput");
+
+    function renderAssistants() {
+      assistantsListEl.innerHTML = "";
+      assistants.forEach(a => {
+        const row = document.createElement("div");
+        row.className = "assistant" + (a.id === activeAssistantId ? " active" : "");
+        row.innerHTML = `
+          <div>
+            <div class="name">${escapeHtml(a.name)}</div>
+            <div class="meta">conv: <span class="chip">${a.conversationId}</span></div>
+            <div class="meta">vector store: <span class="chip">${a.vectorStoreId}</span></div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-muted" data-action="select">Open</button>
+            <button class="btn-danger" data-action="delete">Delete</button>
+          </div>
+        `;
+        row.querySelector('[data-action="select"]').onclick = () => setActiveAssistant(a.id);
+        row.querySelector('[data-action="delete"]').onclick = () => {
+          if (confirm("Delete assistant? This only removes it locally (vector store remains in OpenAI).")) {
+            removeAssistant(a.id);
+          }
+        };
+        assistantsListEl.appendChild(row);
+      });
+    }
+    function renderActive() {
+      const a = getAssistant(activeAssistantId);
+      if (!a) {
+        activeAssistantNameEl.textContent = "No assistant selected";
+        chatMetaEl.textContent = "";
+        return;
+      }
+      activeAssistantNameEl.textContent = a.name;
+      chatMetaEl.textContent = "conv: " + a.conversationId + "  |  vs: " + a.vectorStoreId;
+    }
+
+    // Chat history per assistant
+    function chatKey(aid) { return LS_CHAT_PREFIX + aid; }
+    function getChat(aid) {
+      try { return JSON.parse(localStorage.getItem(chatKey(aid))) || []; } catch { return []; }
+    }
+    function setChat(aid, arr) {
+      localStorage.setItem(chatKey(aid), JSON.stringify(arr));
+    }
+    function addChat(aid, item) {
+      const arr = getChat(aid);
+      arr.push(item);
+      setChat(aid, arr);
+      return arr;
+    }
+    function renderChatHistory() {
+      messagesEl.innerHTML = "";
+      const a = getAssistant(activeAssistantId);
+      if (!a) return;
+      const history = getChat(a.id);
+      history.forEach(m => {
+        addMessageBubble(m.role, m.text, m.meta, m.type);
+      });
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    
+    function addMessageBubble(role, text, meta, type = "message") {
+      const row = document.createElement("div");
+      let className = "msg";
+      let avatarClass = "";
+      let initials = role === "user" ? "U" : role === "assistant" ? "A" : "S";
+      
+      if (type === "reasoning") {
+        className += " reasoning";
+        avatarClass = " reasoning";
+        initials = "🤔";
+      } else if (type === "error") {
+        className += " error";
+        avatarClass = " error";
+        initials = "⚠";
+      } else if (type === "background") {
+        className += " background-task";
+        avatarClass = " background";
+        initials = "⏳";
+      }
+      
+      row.className = className;
+      
+      const textContent = type === "reasoning" 
+        ? `<div class="reasoning-text">${escapeHtml(text || "")}</div>`
+        : `<div class="text">${escapeHtml(text || "")}</div>`;
+      
+      row.innerHTML = `
+        <div class="avatar${avatarClass}">${initials}</div>
+        <div>
+          <div class="role">${role}</div>
+          ${textContent}
+          ${meta ? `<div class="note">${escapeHtml(meta)}</div>` : ""}
+        </div>
+      `;
+      messagesEl.appendChild(row);
+      return row;
+    }
+
+    // Notifications (non-blocking)
+    function notify(message, type = "info") {
+      try {
+        const el = document.createElement("div");
+        el.textContent = String(message);
+        el.style.cssText = "position:fixed;top:12px;right:12px;background:#111827;color:#e5e7eb;border:1px solid #1f2937;padding:8px 10px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.3);z-index:9999;font-weight:600;";
+        if (type === "success") el.style.borderColor = "#10b981";
+        if (type === "error") el.style.borderColor = "#ef4444";
+        if (type === "warning") el.style.borderColor = "#f59e0b";
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      } catch {}
+    }
+    // Route alerts to non-blocking notifications
+    window.alert = (msg) => notify(msg, "info");
+
+    // Enhanced SSE Streaming parsing for Responses API
+    async function streamSSEFromResponse(response, handlers) {
+      if (!response.body) throw new Error("No response body");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Split on double newlines which delimit events
+        let idx;
+        while ((idx = buffer.indexOf("\n\n")) !== -1) {
+          const chunk = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 2);
+
+          if (!chunk || chunk.startsWith(":")) continue; // comment/keepalive
+          const lines = chunk.split("\n");
+          let event = null;
+          let data = "";
+          for (const line of lines) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            else if (line.startsWith("data:")) data += line.slice(5).trim();
+          }
+          if (data) {
+            try {
+              const json = JSON.parse(data);
+              handlers.onEvent && handlers.onEvent(event || "message", json);
+            } catch (e) {
+              console.warn("Failed to parse SSE data", e, data);
+            }
+          }
+        }
+      }
+      
+      // Process any trailing event
+      if (buffer.trim().length) {
+        const lines = buffer.split("\n");
+        let event = null;
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) data += line.slice(5).trim();
+        }
+        if (data) {
+          try {
+            const json = JSON.parse(data);
+            handlers.onEvent && handlers.onEvent(event || "message", json);
+          } catch {}
+        }
+      }
+      handlers.onDone && handlers.onDone();
+    }
+
+    // API helpers
+    async function apiCreateConversation() {
+      const res = await fetch("/agents/conversation/new");
+      if (!res.ok) throw new Error("Failed to create conversation");
+      const j = await res.json();
+      return j.conversationId;
+    }
+    async function apiCreateVectorStore(name) {
+      const fd = new FormData();
+      fd.append("name", name);
+      const res = await fetch("/vector-stores", { method: "POST", body: fd });
+      if (!res.ok) throw new Error("Failed to create vector store");
+      return res.json();
+    }
+    async function apiListVectorStoreFiles(vectorStoreId) {
+      const res = await fetch(`/vector-stores/${encodeURIComponent(vectorStoreId)}/files`);
+      if (!res.ok) throw new Error("Failed to list files");
+      return res.json();
+    }
+    async function apiUploadFiles(vectorStoreId, files) {
+      const fd = new FormData();
+      for (const f of files) fd.append("files", f);
+      const res = await fetch(`/vector-stores/${encodeURIComponent(vectorStoreId)}/files`, {
+        method: "POST", body: fd
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      return res.json();
+    }
+
+    // Create new assistant flow
+    document.getElementById("newAssistantBtn").onclick = async () => {
+      try {
+        const name = (assistantNameInput.value || prompt("Assistant Name")).trim();
+        if (!name) return;
+        
+        // Show loading state
+        const btn = document.getElementById("newAssistantBtn");
+        const originalText = btn.textContent;
+        btn.textContent = "Creating...";
+        btn.disabled = true;
+        
+        try {
+          const [conversationId, vsResp] = await Promise.all([
+            apiCreateConversation(),
+            apiCreateVectorStore(name)
+          ]);
+          const vectorStoreId = vsResp?.vectorStore?.id || vsResp?.id || vsResp?.vectorStoreId;
+          if (!vectorStoreId) throw new Error("No vector store id in response");
+
+          const a = { id: uid(), name, conversationId, vectorStoreId };
+          assistants.push(a);
+          saveAssistants();
+          setActiveAssistant(a.id);
+          assistantNameInput.value = ""; // Clear the input
+          notify("Assistant created successfully!", "success");
+        } catch (apiError) {
+          // Fallback: Create assistant with mock IDs for testing navigation
+          console.warn("API creation failed, creating fallback assistant:", apiError);
+          const fallbackAssistant = {
+            id: uid(),
+            name: name + " (Demo)",
+            conversationId: "conv_demo_" + uid(),
+            vectorStoreId: "vs_demo_" + uid()
+          };
+          assistants.push(fallbackAssistant);
+          saveAssistants();
+          setActiveAssistant(fallbackAssistant.id);
+          assistantNameInput.value = ""; // Clear the input
+          notify("Assistant created in demo mode (API unavailable)", "info");
+        }
+      } catch (e) {
+        console.error("Assistant creation completely failed:", e);
+        notify("Failed to create assistant: " + (e.message || "Unknown error"), "error");
+      } finally {
+        // Restore button state
+        const btn = document.getElementById("newAssistantBtn");
+        btn.textContent = "New Assistant";
+        btn.disabled = false;
+      }
+    };
+
+    // Refresh button
+    document.getElementById("refreshBtn").onclick = () => {
+      renderAssistants();
+      renderActive();
+      refreshFiles();
+      renderChatHistory();
+    };
+
+    // Files panel
+    const filesListEl = document.getElementById("filesList");
+    const fileInput = document.getElementById("fileInput");
+    document.getElementById("uploadBtn").onclick = async () => {
+      try {
+        const a = getAssistant(activeAssistantId);
+        if (!a) return alert("Select an assistant first");
+        const files = fileInput.files;
+        if (!files || files.length === 0) return alert("Choose files first");
+        await apiUploadFiles(a.vectorStoreId, files);
+        fileInput.value = "";
+        await refreshFiles();
+        alert("Uploaded");
+      } catch (e) {
+        console.error(e);
+        alert("Upload failed");
+      }
+    };
+    async function refreshFiles() {
+      filesListEl.innerHTML = "";
+      const a = getAssistant(activeAssistantId);
+      if (!a) return;
+      try {
+        const data = await apiListVectorStoreFiles(a.vectorStoreId);
+        const entries = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        if (entries.length === 0) {
+          filesListEl.innerHTML = `<div class="muted">No files in this vector store.</div>`;
+        } else {
+          entries.forEach(f => {
+            const row = document.createElement("div");
+            row.className = "file-row";
+            row.innerHTML = `
+              <div>
+                <div><strong>${escapeHtml(f.filename || f.id)}</strong></div>
+                <div class="note">id: ${escapeHtml(f.id)}</div>
+              </div>
+              <div class="chip">${escapeHtml(f.status || "ready")}</div>
+            `;
+            filesListEl.appendChild(row);
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        filesListEl.innerHTML = `<div class="muted">Failed to load files.</div>`;
+      }
+    }
+
+    // Enhanced Chat via SSE with Responses API support
+    const textInput = document.getElementById("textInput");
+    const sendBtn = document.getElementById("sendBtn");
+    sendBtn.onclick = async () => {
+      const a = getAssistant(activeAssistantId);
+      if (!a) return alert("Select an assistant first");
+      const input = textInput.value.trim();
+      if (!input) return;
+      textInput.value = "";
+
+      addMessageBubble("user", input);
+      addChat(a.id, { role: "user", text: input });
+
+      const payload = {
+        input,
+        conversationId: a.conversationId,
+        vectorStoreIds: [a.vectorStoreId]
+      };
+      
+      try {
+        const resp = await fetch("/agents/supervisor/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          throw new Error(`Server error: ${resp.status} ${resp.statusText}`);
+        }
+
+        let assistantText = "";
+        let reasoningText = "";
+        let currentReasoningBubble = null;
+        let currentAssistantBubble = null;
+
+        // Create placeholder bubble for streaming
+        currentAssistantBubble = addMessageBubble("assistant", "", "streaming...");
+        const streamTextEl = currentAssistantBubble.querySelector(".text");
+
+        await streamSSEFromResponse(resp, {
+          onEvent: (event, data) => {
+            console.log("SSE Event:", event, data);
+            
+            if (event === "conversation") {
+              // Update conversation ID if needed
+              console.log("Conversation ID:", data.conversationId);
+            } else if (event === "transcript") {
+              // Handle audio transcript
+              const transcriptText = data.text || "[transcript]";
+              addMessageBubble("user", transcriptText, "transcribed from audio");
+              addChat(a.id, { role: "user", text: transcriptText, meta: "transcribed from audio" });
+              notify("Transcription completed", "success");
+            } else if (event === "reasoning_summary_text_delta") {
+              // Handle streaming chain-of-thought
+              if (!currentReasoningBubble) {
+                currentReasoningBubble = addMessageBubble("reasoning", "", "thinking...", "reasoning");
+              }
+              reasoningText += data.delta || "";
+              const reasoningTextEl = currentReasoningBubble.querySelector(".reasoning-text");
+              if (reasoningTextEl) {
+                reasoningTextEl.textContent = reasoningText;
+              }
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            } else if (event === "reasoning_summary_text_done") {
+              // Finalize reasoning
+              if (currentReasoningBubble) {
+                const noteEl = currentReasoningBubble.querySelector(".note");
+                if (noteEl) noteEl.textContent = "reasoning complete";
+              }
+            } else if (event === "text_delta") {
+              // Handle streaming response text
+              assistantText += data.text || "";
+              if (streamTextEl) {
+                streamTextEl.textContent = assistantText;
+              }
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            } else if (event === "final") {
+              // Handle final response
+              assistantText = data.text || assistantText;
+              if (streamTextEl) {
+                streamTextEl.textContent = assistantText;
+              }
+              const noteEl = currentAssistantBubble?.querySelector(".note");
+              if (noteEl) noteEl.textContent = "completed";
+            } else if (event === "error") {
+              // Handle errors
+              const errorMsg = "[error] " + (data.error || "Unknown error");
+              if (streamTextEl) {
+                streamTextEl.textContent = errorMsg;
+              }
+              if (currentAssistantBubble) {
+                currentAssistantBubble.classList.add("error");
+              }
+              notify("Error: " + (data.error || "Unknown error"), "error");
+            } else if (event === "background_task") {
+              // Handle background tasks
+              if (data.status === "queued") {
+                addMessageBubble("system", "Task queued for background processing", `Task ID: ${data.taskId}`, "background");
+                notify("Task queued for background processing", "info");
+              } else if (data.status === "in_progress") {
+                addMessageBubble("system", "Background task in progress", `Progress: ${data.progress || 0}%`, "background");
+              } else if (data.status === "completed") {
+                addMessageBubble("system", "Background task completed", `Result: ${data.result || "Success"}`, "background");
+                notify("Background task completed", "success");
+              }
+            }
+          },
+          onDone: () => {
+            if (assistantText && a) {
+              addChat(a.id, { role: "assistant", text: assistantText });
+            }
+            if (reasoningText && a) {
+              addChat(a.id, { role: "reasoning", text: reasoningText, type: "reasoning" });
+            }
+            console.log("Streaming completed");
+          }
+        });
+      } catch (error) {
+        console.error("Streaming error:", error);
+        addMessageBubble("system", "Error: " + error.message, "", "error");
+        notify("Streaming error: " + error.message, "error");
+      }
+    };
+
+    // Enhanced Audio recording with Responses API support
+    const recordBtn = document.getElementById("recordBtn");
+    let mediaRecorder = null;
+    let chunks = [];
+    let audioStream = null;
+    
+    recordBtn.onclick = async () => {
+      if (!mediaRecorder) {
+        // Check if assistant is selected first
+        const a = getAssistant(activeAssistantId);
+        if (!a) {
+          notify("Please select an assistant first", "error");
+          return;
+        }
+
+        try {
+          notify("Requesting microphone permission...", "info");
+          
+          // Request microphone access with optimized constraints for realtime processing
+          audioStream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: 16000, // Optimized for Whisper
+              channelCount: 1,   // Mono audio
+              latency: 0.01      // Low latency for realtime
+            }
+          });
+          
+          notify("Microphone access granted. Recording started.", "success");
+          
+          // Use WebM with Opus codec for better compatibility with OpenAI Realtime API
+          let mimeType = 'audio/webm;codecs=opus';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/webm';
+          }
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/mp4';
+          }
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = ''; // Let browser choose
+          }
+          
+          // Create MediaRecorder with optimized settings
+          mediaRecorder = new MediaRecorder(audioStream, {
+            mimeType: mimeType || undefined,
+            audioBitsPerSecond: 128000 // Good quality for speech
+          });
+          chunks = [];
+          
+          mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) {
+              chunks.push(e.data);
+              console.log("Audio chunk received:", e.data.size, "bytes");
+            }
+          };
+          
+          mediaRecorder.onstop = async () => {
+            console.log("Recording stopped, processing audio...");
+            
+            if (chunks.length === 0) {
+              notify("No audio data recorded. Please try again.", "error");
+              return;
+            }
+            
+            const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+            console.log("Audio blob created:", blob.size, "bytes, type:", blob.type);
+            chunks = [];
+
+            // Stop and clean up audio stream
+            if (audioStream) {
+              audioStream.getTracks().forEach(track => track.stop());
+              audioStream = null;
+            }
+
+            try {
+              // Create FormData following OpenAI realtime agents pattern
+              const fd = new FormData();
+              
+              // Determine file extension based on MIME type
+              let fileName = "recording.webm";
+              if (blob.type.includes("mp4")) {
+                fileName = "recording.mp4";
+              } else if (blob.type.includes("wav")) {
+                fileName = "recording.wav";
+              } else if (blob.type.includes("ogg")) {
+                fileName = "recording.ogg";
+              }
+              
+              // Create a proper File object with correct metadata
+              const audioFile = new File([blob], fileName, { 
+                type: blob.type || "audio/webm",
+                lastModified: Date.now()
+              });
+              
+              fd.append("audio", audioFile);
+              fd.append("conversationId", a.conversationId);
+              fd.append("vectorStoreIds", JSON.stringify([a.vectorStoreId]));
+
+              // Add placeholder for streaming response
+              const placeholder = addMessageBubble("assistant", "Processing audio...", "transcribing + streaming response...");
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+              
+              const streamTextEl = placeholder.querySelector(".text");
+              let assistantText = "";
+              let reasoningText = "";
+              let currentReasoningBubble = null;
+
+              console.log("Sending audio to realtime service...", {
+                fileName: audioFile.name,
+                fileSize: audioFile.size,
+                fileType: audioFile.type,
+                conversationId: a.conversationId
+              });
+
+              // Use the improved streaming endpoint
+              const resp = await fetch("/agents/supervisor/stream", {
+                method: "POST",
+                body: fd
+                // Don't set Content-Type header - let browser set it with boundary
+              });
+
+              if (!resp.ok) {
+                const errorText = await resp.text();
+                throw new Error(`Server error: ${resp.status} ${resp.statusText} - ${errorText}`);
+              }
+
+              // Process streaming response with enhanced event handling
+              await streamSSEFromResponse(resp, {
+                onEvent: (event, data) => {
+                  console.log("Audio SSE Event:", event, data);
+                  
+                  if (event === "transcript") {
+                    const transcriptText = data.text || "[transcript]";
+                    addMessageBubble("user", transcriptText, "transcribed from audio");
+                    const aobj = getAssistant(activeAssistantId);
+                    if (aobj) addChat(aobj.id, { role: "user", text: transcriptText, meta: "transcribed from audio" });
+                    notify("Transcription completed", "success");
+                  } else if (event === "reasoning_summary_text_delta") {
+                    // Handle streaming chain-of-thought
+                    if (!currentReasoningBubble) {
+                      currentReasoningBubble = addMessageBubble("reasoning", "", "thinking...", "reasoning");
+                    }
+                    reasoningText += data.delta || "";
+                    const reasoningTextEl = currentReasoningBubble.querySelector(".reasoning-text");
+                    if (reasoningTextEl) {
+                      reasoningTextEl.textContent = reasoningText;
+                    }
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                  } else if (event === "text_delta") {
+                    assistantText += data.text || "";
+                    if (streamTextEl) {
+                      streamTextEl.textContent = assistantText;
+                    }
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                  } else if (event === "final") {
+                    assistantText = data.text || assistantText;
+                    if (streamTextEl) {
+                      streamTextEl.textContent = assistantText;
+                    }
+                    // Update note to show completion
+                    const noteEl = placeholder.querySelector(".note");
+                    if (noteEl) noteEl.textContent = "completed";
+                  } else if (event === "error") {
+                    const errorMsg = "[error] " + (data.error || "Unknown error");
+                    if (streamTextEl) {
+                      streamTextEl.textContent = errorMsg;
+                    }
+                    placeholder.classList.add("error");
+                    notify("Error processing audio: " + (data.error || "Unknown error"), "error");
+                  }
+                },
+                onDone: () => {
+                  const aobj = getAssistant(activeAssistantId);
+                  if (aobj && assistantText) {
+                    addChat(aobj.id, { role: "assistant", text: assistantText });
+                  }
+                  if (aobj && reasoningText) {
+                    addChat(aobj.id, { role: "reasoning", text: reasoningText, type: "reasoning" });
+                  }
+                  console.log("Audio processing completed");
+                }
+              });
+            } catch (error) {
+              console.error("Error processing audio:", error);
+              notify("Error processing audio: " + error.message, "error");
+              
+              // Remove the placeholder message on error
+              if (placeholder && placeholder.parentNode) {
+                placeholder.parentNode.removeChild(placeholder);
+              }
+            }
+          };
+          
+          mediaRecorder.onerror = (event) => {
+            console.error("MediaRecorder error:", event.error);
+            notify("Recording error: " + (event.error || "Unknown error"), "error");
+          };
+          
+          // Start recording with smaller chunks for better responsiveness
+          mediaRecorder.start(250); // Collect data every 250ms for good balance of quality and responsiveness
+          recordBtn.textContent = "Stop Mic";
+          recordBtn.classList.remove("btn-secondary");
+          recordBtn.classList.add("btn-danger");
+          
+        } catch (e) {
+          console.error("Microphone access error:", e);
+          let errorMessage = "Microphone access failed: ";
+          
+          if (e.name === 'NotAllowedError') {
+            errorMessage += "Permission denied. Please allow microphone access and try again.";
+          } else if (e.name === 'NotFoundError') {
+            errorMessage += "No microphone found. Please connect a microphone and try again.";
+          } else if (e.name === 'NotSupportedError') {
+            errorMessage += "Your browser doesn't support audio recording.";
+          } else {
+            errorMessage += e.message || "Unknown error";
+          }
+          
+          notify(errorMessage, "error");
+        }
+      } else {
+        // Stop recording
+        console.log("Stopping recording...");
+        notify("Stopping recording...", "info");
+        
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+        
+        mediaRecorder = null;
+        recordBtn.textContent = "Start Mic";
+        recordBtn.classList.add("btn-secondary");
+        recordBtn.classList.remove("btn-danger");
+      }
+    };
+
+    // Initial render
+    renderAssistants();
+    renderActive();
+    refreshFiles();
+    renderChatHistory();
+  </script>
+</body>
+</html>
