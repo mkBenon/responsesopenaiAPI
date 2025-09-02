@@ -34,6 +34,7 @@ function getAgent(name: string) {
 
 /**
  * POST /agents/supervisor
+ * Enhanced with audio support using the new supervisor agent
  * Body: {
  *   input: string,
  *   conversationId?: string,            // if omitted, a new id is generated
@@ -48,8 +49,22 @@ function getAgent(name: string) {
  * }
  */
 router.post("/supervisor", upload.single("audio"), async (req, res) => {
+  console.log('🚀 [AGENTS_ROUTE] POST /agents/supervisor - Request received');
+  
   try {
     const { input, conversationId, vectorStoreIds, params, targetAgent } = req.body || {};
+    const file = (req as any).file as any;
+    
+    console.log('📊 [AGENTS_ROUTE] Request details:', {
+      hasTextInput: !!input,
+      hasAudioFile: !!file,
+      audioFileSize: file?.buffer?.length || 0,
+      audioMimeType: file?.mimetype,
+      conversationId,
+      vectorStoreIds,
+      targetAgent
+    });
+
     const parsedParams: any =
       typeof params === "string"
         ? (() => {
@@ -84,65 +99,116 @@ router.post("/supervisor", upload.single("audio"), async (req, res) => {
     let convId: string = conversationId;
     if (!convId || typeof convId !== "string" || !convId.startsWith("conv_")) {
       convId = createConversation();
+      console.log(`✅ [AGENTS_ROUTE] Created new conversation: ${convId}`);
+    } else {
+      console.log(`🔄 [AGENTS_ROUTE] Using existing conversation: ${convId}`);
     }
 
-    // If audio file provided, use realtime audio service for transcription
-    const file = (req as any).file as any;
-    let transcribedText: string | undefined;
+    // Prepare input for enhanced supervisor agent
+    let supervisorInput: any;
+    
     if (file) {
-      try {
-        const transcript = await realtimeAudio.transcribeAudio(
-          file.buffer,
-          file.mimetype || "audio/webm"
-        );
-        transcribedText = transcript;
-      } catch (e) {
-        console.error("Transcription failed:", e);
-        return res.status(400).json({ error: "Audio transcription failed" });
-      }
-    }
-
-    const finalInput: string = transcribedText
-      ? (input ? `${input}\n\n[Audio transcript]: ${transcribedText}` : transcribedText)
-      : input;
-
-    if (!finalInput) {
-      return res.status(400).json({ error: "No input provided (text or audio transcript)" });
+      console.log('🎤 [AGENTS_ROUTE] Processing audio file with enhanced supervisor agent');
+      console.log(`📊 [AGENTS_ROUTE] Audio file details: ${file.mimetype}, ${file.buffer.length} bytes`);
+      
+      // Use the enhanced supervisor agent with audio input
+      supervisorInput = {
+        type: 'audio',
+        audioBuffer: file.buffer,
+        mimeType: file.mimetype || 'audio/webm',
+        metadata: {
+          originalFilename: file.originalname,
+          size: file.buffer.length
+        }
+      };
+      
+      console.log('🔧 [AGENTS_ROUTE] Created AudioInput for supervisor agent');
+    } else if (input) {
+      console.log('📝 [AGENTS_ROUTE] Processing text input');
+      supervisorInput = input;
+    } else {
+      console.error('❌ [AGENTS_ROUTE] No input provided (neither text nor audio)');
+      return res.status(400).json({ error: "No input provided (text or audio)" });
     }
 
     // If caller specifies a target agent, route directly; otherwise let supervisor decide
     let agentNameUsed = "supervisor";
     let result;
+    
     if (targetAgent) {
+      console.log(`🎯 [AGENTS_ROUTE] Routing directly to ${targetAgent} agent`);
       try {
         const agent = getAgent(targetAgent);
         agentNameUsed = targetAgent;
+        
+        // For direct agent routing, we need to handle audio differently
+        // since sub-agents only accept string inputs
+        let finalInput: string;
+        if (typeof supervisorInput === 'object' && supervisorInput.type === 'audio') {
+          console.log('🔄 [AGENTS_ROUTE] Converting audio to text for direct agent routing');
+          try {
+            const transcript = await realtimeAudio.transcribeAudio(
+              supervisorInput.audioBuffer,
+              supervisorInput.mimeType
+            );
+            finalInput = transcript;
+            console.log(`📝 [AGENTS_ROUTE] Audio transcribed for direct routing: "${transcript}"`);
+          } catch (e) {
+            console.error('❌ [AGENTS_ROUTE] Audio transcription failed for direct routing:', e);
+            return res.status(400).json({ error: "Audio transcription failed" });
+          }
+        } else {
+          finalInput = supervisorInput;
+        }
+        
         result = await agent.run({
           conversationId: convId,
           input: finalInput,
           params: { ...parsedParams, vectorStoreIds: vsIds },
         });
       } catch (e) {
-        console.error("Direct agent dispatch failed:", e);
+        console.error('❌ [AGENTS_ROUTE] Direct agent dispatch failed:', e);
         return res.status(400).json({ error: `Unknown or failed agent '${targetAgent}'` });
       }
     } else {
+      console.log('🧠 [AGENTS_ROUTE] Using enhanced supervisor agent for routing decision');
       result = await supervisorAgent.run({
         conversationId: convId,
-        input: finalInput,
+        input: supervisorInput,
         params: { ...parsedParams, vectorStoreIds: vsIds },
       });
+      console.log('✅ [AGENTS_ROUTE] Supervisor agent processing completed');
+      console.log('📊 [AGENTS_ROUTE] Supervisor metadata:', result.raw?.supervisorMetadata);
     }
 
-    res.json({
+    const response = {
       conversationId: convId,
-      transcribedText,
       agent: agentNameUsed,
       text: result.text,
       raw: result.raw,
+      // Include audio processing metadata if available
+      ...(result.raw?.supervisorMetadata?.audioTranscription?.audioProcessed && {
+        audioProcessed: true,
+        audioType: result.raw.supervisorMetadata.audioTranscription.audioType,
+        originalInputType: result.raw.supervisorMetadata.originalInputType
+      })
+    };
+
+    console.log('✅ [AGENTS_ROUTE] Request completed successfully');
+    console.log('📝 [AGENTS_ROUTE] Response preview:', {
+      conversationId: response.conversationId,
+      agent: response.agent,
+      textLength: response.text?.length || 0,
+      audioProcessed: response.audioProcessed || false
     });
+
+    res.json(response);
   } catch (err) {
-    console.error(err);
+    console.error('❌ [AGENTS_ROUTE] Request failed:', err);
+    console.error('❌ [AGENTS_ROUTE] Error details:', {
+      message: err instanceof Error ? err.message : 'Unknown error',
+      stack: err instanceof Error ? err.stack : undefined
+    });
     res.status(500).json({ error: "Supervisor agent request failed" });
   }
 });

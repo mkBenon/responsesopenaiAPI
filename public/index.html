@@ -879,15 +879,23 @@
     let audioStream = null;
     
     recordBtn.onclick = async () => {
+      console.log("🎤 [FRONTEND] Record button clicked");
+      console.log("🎤 [FRONTEND] Current state - mediaRecorder:", !!mediaRecorder);
+      console.log("🎤 [FRONTEND] Active assistant ID:", activeAssistantId);
+      
       if (!mediaRecorder) {
         // Check if assistant is selected first
         const a = getAssistant(activeAssistantId);
+        console.log("🎤 [FRONTEND] Selected assistant:", a);
+        
         if (!a) {
+          console.error("❌ [FRONTEND] No assistant selected");
           notify("Please select an assistant first", "error");
           return;
         }
 
         try {
+          console.log("🎤 [FRONTEND] Requesting microphone permission...");
           notify("Requesting microphone permission...", "info");
           
           // Request microphone access with optimized constraints for realtime processing
@@ -907,14 +915,19 @@
           // Use WebM with Opus codec for better compatibility with OpenAI Realtime API
           let mimeType = 'audio/webm;codecs=opus';
           if (!MediaRecorder.isTypeSupported(mimeType)) {
+            console.log("🎤 [FRONTEND] audio/webm;codecs=opus not supported, trying audio/webm");
             mimeType = 'audio/webm';
           }
           if (!MediaRecorder.isTypeSupported(mimeType)) {
+            console.log("🎤 [FRONTEND] audio/webm not supported, trying audio/mp4");
             mimeType = 'audio/mp4';
           }
           if (!MediaRecorder.isTypeSupported(mimeType)) {
+            console.log("🎤 [FRONTEND] audio/mp4 not supported, letting browser choose");
             mimeType = ''; // Let browser choose
           }
+          
+          console.log("🎤 [FRONTEND] Selected MIME type:", mimeType);
           
           // Create MediaRecorder with optimized settings
           mediaRecorder = new MediaRecorder(audioStream, {
@@ -930,15 +943,21 @@
             }
           };
           
+          // Store mimeType immediately after creating MediaRecorder
+          const recordedMimeType = mediaRecorder.mimeType || mimeType || "audio/webm";
+          
           mediaRecorder.onstop = async () => {
-            console.log("Recording stopped, processing audio...");
+            console.log("🎤 [FRONTEND] Recording stopped, processing audio...");
+            console.log("🎤 [FRONTEND] Chunks collected:", chunks.length);
+            console.log("🎤 [FRONTEND] Using MIME type:", recordedMimeType);
             
             if (chunks.length === 0) {
+              console.error("❌ [FRONTEND] No audio data recorded");
               notify("No audio data recorded. Please try again.", "error");
               return;
             }
             
-            const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+            const blob = new Blob(chunks, { type: recordedMimeType });
             console.log("Audio blob created:", blob.size, "bytes, type:", blob.type);
             chunks = [];
 
@@ -954,11 +973,11 @@
               
               // Determine file extension based on MIME type
               let fileName = "recording.webm";
-              if (blob.type.includes("mp4")) {
+              if (recordedMimeType.includes("mp4")) {
                 fileName = "recording.mp4";
-              } else if (blob.type.includes("wav")) {
+              } else if (recordedMimeType.includes("wav")) {
                 fileName = "recording.wav";
-              } else if (blob.type.includes("ogg")) {
+              } else if (recordedMimeType.includes("ogg")) {
                 fileName = "recording.ogg";
               }
               

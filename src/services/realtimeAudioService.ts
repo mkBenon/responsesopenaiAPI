@@ -151,7 +151,12 @@ export class RealtimeAudioService extends EventEmitter {
    * This is a fallback method for when WebRTC is not available
    */
   async transcribeAudio(audioBuffer: Buffer, mimeType: string = "audio/webm"): Promise<string> {
+    console.log('🎙️ [AUDIO_SERVICE] Starting audio transcription');
+    console.log(`📊 [AUDIO_SERVICE] Input details: ${mimeType}, ${audioBuffer.length} bytes`);
+    
     try {
+      console.log('🔧 [AUDIO_SERVICE] Preparing FormData for OpenAI Whisper API');
+      
       // Convert audio to format suitable for Whisper
       const formData = new FormData();
       const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
@@ -159,6 +164,11 @@ export class RealtimeAudioService extends EventEmitter {
       formData.append("model", "whisper-1");
       formData.append("language", "en");
 
+      console.log('🌐 [AUDIO_SERVICE] Sending request to OpenAI Whisper API');
+      console.log('🔗 [AUDIO_SERVICE] Endpoint: https://api.openai.com/v1/audio/transcriptions');
+      console.log('🔑 [AUDIO_SERVICE] Using API key:', this.config.apiKey ? `${this.config.apiKey.substring(0, 10)}...` : 'NOT SET');
+
+      const startTime = Date.now();
       const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
         method: "POST",
         headers: {
@@ -166,15 +176,41 @@ export class RealtimeAudioService extends EventEmitter {
         },
         body: formData,
       });
+      const endTime = Date.now();
+
+      console.log(`⏱️ [AUDIO_SERVICE] API request completed in ${endTime - startTime}ms`);
+      console.log(`📡 [AUDIO_SERVICE] Response status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
-        throw new Error(`Transcription failed: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`❌ [AUDIO_SERVICE] Transcription failed: ${response.status} ${response.statusText}`);
+        console.error(`❌ [AUDIO_SERVICE] Error response body:`, errorText);
+        throw new Error(`Transcription failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
+      console.log('✅ [AUDIO_SERVICE] Parsing JSON response');
       const result = await response.json();
-      return result.text || "";
+      console.log('📝 [AUDIO_SERVICE] Raw API response:', result);
+      
+      const transcript = result.text || "";
+      console.log(`📝 [AUDIO_SERVICE] Extracted transcript: "${transcript}"`);
+      console.log(`📏 [AUDIO_SERVICE] Transcript length: ${transcript.length} characters`);
+      
+      if (!transcript || transcript.trim().length === 0) {
+        console.warn('⚠️ [AUDIO_SERVICE] Warning: Transcription returned empty text');
+      }
+
+      console.log('✅ [AUDIO_SERVICE] Audio transcription completed successfully');
+      return transcript;
     } catch (error) {
-      console.error("Audio transcription failed:", error);
+      console.error("❌ [AUDIO_SERVICE] Audio transcription failed:", error);
+      console.error("❌ [AUDIO_SERVICE] Error details:", {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        audioBufferSize: audioBuffer.length,
+        mimeType: mimeType,
+        apiKeyPresent: !!this.config.apiKey
+      });
       throw error;
     }
   }

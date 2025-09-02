@@ -11,6 +11,11 @@ export const ragAgent: Agent = {
   name: "rag",
   description: "Retrieval-augmented agent using OpenAI Vector Stores (file_search tool).",
   async run({ conversationId, input, params }: AgentRunInput): Promise<AgentRunResult> {
+    // Ensure input is a string (supervisor agent should have processed audio inputs)
+    if (typeof input !== 'string') {
+      throw new Error('RAGAgent only accepts string inputs. Audio inputs should be processed by supervisor agent first.');
+    }
+
     const vectorStoreIds = (params as any)?.vectorStoreIds as string[] | undefined;
 
     if (!vectorStoreIds || vectorStoreIds.length === 0) {

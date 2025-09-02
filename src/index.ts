@@ -9,6 +9,22 @@ import realtimeRoutes from "./routes/realtime";
 dotenv.config();
 
 const app = express();
+
+// Add logging middleware for audio debugging
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`🌐 [SERVER] ${timestamp} - ${req.method} ${req.path}`);
+  
+  // Log audio-related requests with more detail
+  if (req.path.includes('/agents') && req.method === 'POST') {
+    console.log('🎤 [SERVER] Audio-capable endpoint accessed');
+    console.log('📊 [SERVER] Content-Type:', req.get('Content-Type'));
+    console.log('📊 [SERVER] Content-Length:', req.get('Content-Length'));
+  }
+  
+  next();
+});
+
 app.use(express.json());
 
 // Static frontend

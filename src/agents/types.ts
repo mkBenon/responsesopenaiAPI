@@ -2,9 +2,39 @@ import { z } from "zod";
 
 export type AgentRunInput = {
   conversationId: string;
-  input: string;
+  input: string | AudioInput | BatchAudioInput;
   // Optional contextual parameters agents may use
   params?: Record<string, unknown>;
+};
+
+// Audio input types for enhanced supervisor agent
+export type AudioInput = {
+  type: 'audio';
+  audioBuffer: Buffer;
+  mimeType: string;
+  metadata?: {
+    duration?: number;
+    sampleRate?: number;
+    channels?: number;
+  };
+};
+
+export type BatchAudioInput = {
+  type: 'batch_audio';
+  audioChunks: Array<{
+    audioBuffer: Buffer;
+    mimeType: string;
+    timestamp?: number;
+    metadata?: {
+      duration?: number;
+      sampleRate?: number;
+      channels?: number;
+    };
+  }>;
+  batchMetadata?: {
+    totalDuration?: number;
+    processingMode?: 'sequential' | 'parallel' | 'merged';
+  };
 };
 
 export type AgentRunResult = {
